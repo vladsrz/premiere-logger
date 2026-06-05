@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Premiere Logger</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#1a1a1d;--card:#232326;--border:#2e2e33;
+  --accent:#e05c20;--green:#4cc378;--amber:#e0a820;
+  --text:#e0e0e0;--muted:#777;--dim:#444;
+}
+
+html,body{height:100%;overflow:hidden}
+
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:12px;display:flex;flex-direction:column;
+}
+
+/* ── header ── */
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.logo{display:flex;align-items:center;gap:7px;font-weight:700;font-size:13px}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
+.refresh-btn{
+  background:none;border:1px solid var(--border);color:var(--muted);
+  padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;
+}
+.refresh-btn:hover{color:var(--text);border-color:var(--dim)}
+
+/* ── now bar ── */
+.now-bar{
+  padding:10px 12px;border-bottom:1px solid var(--border);
+  flex-shrink:0;display:flex;align-items:center;gap:8px;
+}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:background .3s}
+.status-dot.active{background:var(--green);box-shadow:0 0 5px var(--green)}
+.status-dot.idle{background:var(--amber);box-shadow:0 0 5px var(--amber)}
+.now-project{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now-seq{color:var(--muted);font-size:11px;margin-top:1px}
+
+/* ── scroll area ── */
+.scroll{flex:1;overflow-y:auto;padding:12px}
+.scroll::-webkit-scrollbar{width:4px}
+.scroll::-webkit-scrollbar-track{background:transparent}
+.scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── section ── */
+.section{margin-bottom:18px}
+.section-title{
+  font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--muted);margin-bottom:8px;
+}
+
+/* ── project rows ── */
+.proj-row{margin-bottom:10px}
+.proj-name{
+  font-weight:600;font-size:12px;margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.proj-meta{
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;
+}
+.proj-time{font-size:12px;font-weight:700;color:var(--text)}
+.proj-idle{font-size:10px;color:var(--muted)}
+.bar-bg{height:4px;background:var(--border);border-radius:2px}
+.bar-fill{height:100%;border-radius:2px;transition:width .4s}
+
+/* ── sequence indent ── */
+.seq-rows{margin-top:5px;padding-left:10px;border-left:2px solid var(--border)}
+.seq-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:3px 0;border-bottom:1px solid var(--border);
+}
+.seq-row:last-child{border-bottom:none}
+.seq-name{color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%}
+.seq-time{font-size:11px;font-weight:600;flex-shrink:0}
+
+/* ── sessions ── */
+.session{
+  display:grid;grid-template-columns:3px 1fr auto;gap:0 8px;
+  align-items:start;padding:7px 0;border-bottom:1px solid var(--border);
+}
+.session:last-child{border-bottom:none}
+.session-bar{border-radius:2px;height:100%;min-height:28px;align-self:stretch}
+.session-name{font-weight:500;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-seq{font-size:10px;color:var(--muted);margin-top:1px}
+.session-range{font-size:10px;color:var(--dim);margin-top:2px}
+.session-dur{font-size:12px;font-weight:700;text-align:right}
+.session-idle{font-size:10px;color:var(--muted);text-align:right}
+
+.day-label{
+  font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--muted);padding:8px 0 4px;border-bottom:1px solid var(--border);margin-bottom:4px;
+}
+
+.empty{color:var(--muted);font-style:italic;padding:8px 0}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo"><div class="logo-dot"></div>Premiere Logger</div>
+  <button class="refresh-btn" id="refresh-btn">↻ Refresh</button>
+</div>
+
+<div class="now-bar">
+  <div class="status-dot" id="status-dot"></div>
+  <div style="min-width:0">
+    <div class="now-project" id="now-project">—</div>
+    <div class="now-seq" id="now-seq"></div>
+  </div>
+</div>
+
+<div class="scroll">
+
+  <div class="section">
+    <div class="section-title">Today</div>
+    <div id="today-list"><div class="empty">No data yet.</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Recent Sessions</div>
+    <div id="sessions-list"><div class="empty">No sessions yet.</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">All-Time</div>
+    <div id="alltime-list"><div class="empty">No data yet.</div></div>
+  </div>
+
+</div>
+
+<script src="js/main.js"></script>
+</body>
+</html>

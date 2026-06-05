@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Personal data — time logs, database, logs
+data/
+time_log.db
+tracker.log
+server_err.txt
+
+# Extension config (contains local install path)
+extension/config.json
+
+# Claude Code
+.claude/

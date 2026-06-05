@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Premiere Logger</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #111113;
+      --card: #1c1c1f;
+      --card2: #242428;
+      --accent: #e05c20;
+      --accent2: #f07d46;
+      --text: #e2e2e5;
+      --muted: #888;
+      --border: #2e2e33;
+      --green: #4caf7d;
+      --yellow: #e0a820;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    #status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      font-size: 13px;
+      transition: all 0.3s;
+    }
+
+    #status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+
+    #status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    #status-dot.idle   { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+
+    .refresh-hint {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 28px 24px;
+      display: grid;
+      gap: 24px;
+    }
+
+    h2 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 24px;
+    }
+
+    /* Today row */
+    .today-grid {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .donut-wrap {
+      position: relative;
+      width: 190px;
+      height: 190px;
+    }
+
+    .donut-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .donut-center .big { font-size: 24px; font-weight: 700; }
+    .donut-center .small { font-size: 11px; color: var(--muted); }
+
+    .project-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .project-row {
+      display: grid;
+      grid-template-columns: 1fr 90px 80px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .project-name {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bar-wrap {
+      height: 6px;
+      background: var(--card2);
+      border-radius: 3px;
+      overflow: hidden;
+      grid-column: 1 / -1;
+      margin-top: -6px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .time-label {
+      font-size: 13px;
+      color: var(--text);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .idle-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    /* Week chart */
+    .chart-wrap {
+      position: relative;
+      height: 220px;
+    }
+
+    /* All-time table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 6px 12px 10px;
+      color: var(--muted);
+      font-weight: 500;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th:not(:first-child) { text-align: right; }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td:not(:first-child) { text-align: right; }
+
+    tr:last-child td { border-bottom: none; }
+
+    tbody tr:hover { background: var(--card2); }
+
+    .dot {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .empty { color: var(--muted); font-style: italic; padding: 24px 0; text-align: center; }
+
+    .total-row { font-weight: 600; color: var(--accent2); }
+
+    .short-toggle {
+      font-size: 12px; color: var(--muted); cursor: pointer;
+      padding: 6px 0 2px; user-select: none;
+    }
+    .short-toggle:hover { color: var(--text); }
+    .short-section { display: none; }
+    .short-section.open { display: block; }
+
+    /* app activity */
+    .app-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px 16px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .app-row:last-child { border-bottom: none; }
+    .app-row-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .app-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .app-sub  { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .app-bar-wrap { height: 4px; background: var(--card2); border-radius: 2px; margin-top: 4px; }
+    .app-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
+    .app-time { font-size: 13px; font-weight: 600; white-space: nowrap; }
+
+    .cat-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .cat-badge:hover { filter: brightness(1.2); }
+    .cat-work        { background: rgba(76,195,120,.15); color: #4cc378; border-color: rgba(76,195,120,.3); }
+    .cat-research    { background: rgba(100,160,255,.15); color: #64a0ff; border-color: rgba(100,160,255,.3); }
+    .cat-distraction { background: rgba(255,90,90,.15);  color: #ff5a5a; border-color: rgba(255,90,90,.3); }
+    .cat-break       { background: rgba(180,180,180,.1); color: #aaa;    border-color: rgba(180,180,180,.2); }
+    .cat-none        { background: var(--card2); color: var(--muted); border-color: var(--border); }
+    .cat-ignore      { background: rgba(80,80,80,.15); color: #555; border-color: #333; text-decoration: line-through; }
+
+    /* sessions */
+    .session-row {
+      display: grid;
+      grid-template-columns: 14px 1fr auto;
+      gap: 0 12px;
+      align-items: start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .session-row:last-child { border-bottom: none; }
+    .session-bar {
+      width: 3px;
+      border-radius: 2px;
+      min-height: 36px;
+      height: 100%;
+      grid-row: span 2;
+      align-self: stretch;
+    }
+    .session-name { font-weight: 500; font-size: 13px; }
+    .session-time { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .session-dur  { font-size: 13px; font-weight: 600; color: var(--text); text-align: right; }
+    .session-idle { font-size: 11px; color: var(--muted); text-align: right; margin-top: 2px; }
+    .session-date-divider {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      padding: 14px 0 6px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* project drawer */
+    tbody tr { cursor: pointer; }
+
+    .drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 99;
+      display: none;
+      cursor: pointer;
+    }
+    .drawer-overlay.open { display: block; }
+
+    .project-drawer {
+      position: fixed;
+      top: 0; right: 0;
+      width: 500px;
+      max-width: 100vw;
+      height: 100vh;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      z-index: 100;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+    }
+    .project-drawer.open { transform: translateX(0); }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--card);
+      z-index: 1;
+    }
+    .drawer-title {
+      font-size: 16px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .drawer-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .drawer-close:hover { background: var(--card2); color: var(--text); }
+
+    .drawer-body { padding: 24px; }
+
+    .drawer-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .stat-box {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .stat-value { font-size: 22px; font-weight: 700; }
+
+    .drawer-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin: 24px 0 10px;
+    }
+
+    .seq-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .seq-item:last-child { border-bottom: none; }
+
+    .proj-session-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2px 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .proj-session-row:last-child { border-bottom: none; }
+    .proj-session-date {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--muted);
+      padding: 16px 0 6px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Premiere Logger
+  </div>
+  <div id="status-badge">
+    <div id="status-dot"></div>
+    <span id="status-text">Checking…</span>
+  </div>
+  <span class="refresh-hint" id="refresh-hint"></span>
+</header>
+
+<main>
+  <!-- TODAY -->
+  <div class="card">
+    <h2 id="today-heading">Today</h2>
+    <div class="today-grid">
+      <div class="donut-wrap">
+        <canvas id="donut-chart"></canvas>
+        <div class="donut-center">
+          <span class="big" id="donut-total">—</span>
+          <span class="small">active today</span>
+        </div>
+      </div>
+      <div class="project-list" id="project-list">
+        <div class="empty">No data yet — open Premiere Pro to start tracking.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP ACTIVITY -->
+  <div class="card">
+    <h2>App Activity — Today</h2>
+    <div id="app-activity-list"><div class="empty">No data yet.</div></div>
+  </div>
+
+  <!-- WEEK -->
+  <div class="card">
+    <h2>Last 7 Days</h2>
+    <div class="chart-wrap">
+      <canvas id="week-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- SESSIONS -->
+  <div class="card">
+    <h2>Recent Sessions</h2>
+    <div id="sessions-list"><div class="empty">No sessions yet.</div></div>
+  </div>
+
+  <!-- ALL TIME -->
+  <div class="card">
+    <h2>All-Time</h2>
+    <table id="alltime-table">
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Active</th>
+          <th>Idle</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody><tr><td colspan="4" class="empty">No data yet.</td></tr></tbody>
+    </table>
+    <div id="alltime-apps"></div>
+  </div>
+</main>
+
+<div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()"></div>
+<div id="project-drawer" class="project-drawer">
+  <div class="drawer-header">
+    <div class="drawer-title" id="drawer-title">Project</div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</div>
+
+<script>
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  function fmt(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return m ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  function projectColor(name, alpha = 1) {
+    let hash = 0;
+    for (const ch of name) hash = Math.imul(31, hash) + ch.charCodeAt(0) | 0;
+    const hue = ((hash % 360) + 360) % 360;
+    return `hsla(${hue}, 62%, 58%, ${alpha})`;
+  }
+
+  // ── status indicator ──────────────────────────────────────────────────────
+
+  async function refreshStatus() {
+    try {
+      const r = await fetch('/api/status');
+      const d = await r.json();
+      const dot  = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+      if (d.tracking) {
+        dot.className = d.status;
+        text.textContent = `${d.project} · ${d.status}`;
+      } else {
+        dot.className = '';
+        text.textContent = 'Premiere Pro not active';
+      }
+    } catch (_) {
+      document.getElementById('status-text').textContent = 'Dashboard offline';
+    }
+  }
+
+  // ── today donut ───────────────────────────────────────────────────────────
+
+  let donutChart = null;
+
+  async function refreshToday() {
+    const r = await fetch('/api/today');
+    const d = await r.json();
+
+    const heading = document.getElementById('today-heading');
+    const label = new Date(d.date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    heading.textContent = `Today — ${label}`;
+
+    const projects = d.projects || [];
+    const totalActive = projects.reduce((s, p) => s + p.active, 0);
+
+    document.getElementById('donut-total').textContent = totalActive ? fmt(totalActive) : '0m';
+
+    // chart
+    const labels = projects.map(p => p.name);
+    const values = projects.map(p => p.active);
+    const colors = projects.map(p => projectColor(p.name));
+
+    if (donutChart) {
+      donutChart.data.labels = labels;
+      donutChart.data.datasets[0].data = values;
+      donutChart.data.datasets[0].backgroundColor = colors;
+      donutChart.update();
+    } else {
+      const ctx = document.getElementById('donut-chart').getContext('2d');
+      donutChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 4 }] },
+        options: {
+          cutout: '72%',
+          plugins: { legend: { display: false }, tooltip: {
+            callbacks: { label: item => ` ${item.label}: ${fmt(item.raw)}` }
+          }},
+          animation: { duration: 400 }
+        }
+      });
+    }
+
+    // project list
+    const list = document.getElementById('project-list');
+    if (!projects.length) {
+      list.innerHTML = '<div class="empty">No data yet — open Premiere Pro to start tracking.</div>';
+      return;
+    }
+
+    const main  = projects.filter(p => !p.short);
+    const short = projects.filter(p =>  p.short);
+
+    function projRow(p) {
+      const pct = totalActive ? Math.round((p.active / totalActive) * 100) : 0;
+      const color = projectColor(p.name);
+      const idleStr = p.idle ? ` · ${fmt(p.idle)} idle` : '';
+      return `<div>
+        <div class="project-row">
+          <span class="project-name"><span class="dot" style="background:${color}"></span>${p.name}</span>
+          <span class="time-label">${fmt(p.active)}</span>
+          <span class="idle-label">${idleStr}</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      </div>`;
+    }
+
+    let html = main.map(projRow).join('');
+    if (short.length) {
+      const id = 'short-today';
+      html += `<div class="short-toggle" onclick="toggleShort('${id}')">▸ ${short.length} short session${short.length>1?'s':''} (under 5m)</div>
+               <div id="${id}" class="short-section">${short.map(projRow).join('')}</div>`;
+    }
+    list.innerHTML = html;
+  }
+
+  // ── week chart ────────────────────────────────────────────────────────────
+
+  let weekChart = null;
+
+  async function refreshWeek() {
+    const r = await fetch('/api/week');
+    const d = await r.json();
+    const { days, all_projects: allProjects } = d;
+
+    const labels = days.map(day => {
+      const dt = new Date(day.date + 'T00:00:00');
+      return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    });
+
+    const datasets = allProjects.map(proj => ({
+      label: proj,
+      data: days.map(day => Math.round((day.projects[proj] || 0) / 3600 * 100) / 100),
+      backgroundColor: projectColor(proj, 0.85),
+      borderRadius: 3,
+      borderSkipped: false,
+    }));
+
+    if (weekChart) {
+      weekChart.data.labels = labels;
+      weekChart.data.datasets = datasets;
+      weekChart.update();
+    } else {
+      const ctx = document.getElementById('week-chart').getContext('2d');
+      weekChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              stacked: true,
+              grid: { color: '#2a2a2f' },
+              ticks: { color: '#888' }
+            },
+            y: {
+              stacked: true,
+              grid: { color: '#2a2a2f' },
+              ticks: {
+                color: '#888',
+                callback: v => v === 0 ? '0' : `${v}h`
+              },
+              title: { display: true, text: 'Active hours', color: '#666', font: { size: 11 } }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: '#aaa', boxWidth: 12, padding: 14, font: { size: 12 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: item => ` ${item.dataset.label}: ${fmt(Math.round(item.raw * 3600))}`
+              }
+            }
+          },
+          animation: { duration: 400 }
+        }
+      });
+    }
+  }
+
+  // ── all-time table ────────────────────────────────────────────────────────
+
+  async function refreshAlltime() {
+    const [r, rApps] = await Promise.all([fetch('/api/alltime'), fetch('/api/apps_alltime')]);
+    const rows = await r.json();
+    const allApps = await rApps.json();
+
+    const tbody = document.querySelector('#alltime-table tbody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty">No data yet.</td></tr>';
+      return;
+    }
+
+    const totalActive = rows.reduce((s, r) => s + r.active, 0);
+    const totalIdle   = rows.reduce((s, r) => s + r.idle,   0);
+
+    function allRow(r) {
+      return `<tr onclick="showProject(${JSON.stringify(r.name)})">
+        <td><span class="dot" style="background:${projectColor(r.name)}"></span>${r.name}</td>
+        <td>${fmt(r.active)}</td>
+        <td>${r.idle ? fmt(r.idle) : '—'}</td>
+        <td>${fmt(r.active + r.idle)}</td>
+      </tr>`;
+    }
+
+    const mainRows  = rows.filter(r => !r.short);
+    const shortRows = rows.filter(r =>  r.short);
+
+    const totalRow = `<tr class="total-row">
+      <td>Total</td><td>${fmt(totalActive)}</td>
+      <td>${totalIdle ? fmt(totalIdle) : '—'}</td>
+      <td>${fmt(totalActive + totalIdle)}</td></tr>`;
+
+    let shortHtml = '';
+    if (shortRows.length) {
+      const id = 'short-alltime';
+      shortHtml = `<tr><td colspan="4" style="padding:0">
+        <div class="short-toggle" onclick="toggleShort('${id}')">▸ ${shortRows.length} short project${shortRows.length>1?'s':''} (under 5m)</div>
+        <div id="${id}" class="short-section"><table style="width:100%">${shortRows.map(allRow).join('')}</table></div>
+      </td></tr>`;
+    }
+
+    tbody.innerHTML = mainRows.map(allRow).join('') + shortHtml + totalRow;
+
+    // top other apps
+    const PREMIERE_NAMES = new Set(['Adobe Premiere', 'Adobe Premiere Pro']);
+    const topApps = allApps
+      .filter(a => !PREMIERE_NAMES.has(a.app) && a.category !== 'ignore')
+      .slice(0, 5);
+
+    const appsEl = document.getElementById('alltime-apps');
+    if (!topApps.length) { appsEl.innerHTML = ''; return; }
+
+    const maxAppSecs = Math.max(...topApps.map(a => a.active + a.idle), 1);
+    appsEl.innerHTML = `
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:12px">Top Other Apps — All Time</div>
+        ${topApps.map(a => {
+          const total = a.active + a.idle;
+          const pct   = Math.round((total / maxAppSecs) * 100);
+          const color = projectColor(a.app);
+          const badge = a.category ? `<span class="cat-badge cat-${a.category}" style="pointer-events:none">${CAT_LABELS[a.category]}</span>` : '';
+          return `
+            <div style="display:grid;grid-template-columns:1fr 90px;align-items:center;gap:6px 12px;padding:8px 0;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                <span class="dot" style="background:${color};flex-shrink:0"></span>
+                <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.app}</span>
+                ${badge}
+              </div>
+              <span style="text-align:right;font-size:13px;font-weight:600;white-space:nowrap">${fmt(total)}</span>
+              <div style="grid-column:1/-1;height:3px;background:var(--card2);border-radius:2px;margin-top:-2px">
+                <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;transition:width 0.5s ease"></div>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  // ── app activity ─────────────────────────────────────────────────────────
+
+  const CAT_CYCLE = [null, 'work', 'research', 'distraction', 'break', 'ignore'];
+  const CAT_LABELS = { work: 'Work', research: 'Research', distraction: 'Distraction', break: 'Break', ignore: 'Ignore' };
+
+  function catBadge(app, current) {
+    const cls = current ? `cat-${current}` : 'cat-none';
+    const label = current ? CAT_LABELS[current] : 'Tag…';
+    return `<span class="cat-badge ${cls}" onclick="cycleCategory(this,'${app.replace(/'/g,"\\'")}','${current||''}')">${label}</span>`;
+  }
+
+  window.cycleCategory = async function(el, app, current) {
+    const idx = CAT_CYCLE.indexOf(current || null);
+    const next = CAT_CYCLE[(idx + 1) % CAT_CYCLE.length];
+    await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app, category: next }),
+    });
+    refreshAppActivity();
+  };
+
+  async function refreshAppActivity() {
+    const r = await fetch('/api/apps_today');
+    const apps = await r.json();
+    const container = document.getElementById('app-activity-list');
+
+    if (!apps.length) {
+      container.innerHTML = '<div class="empty">No data yet.</div>';
+      return;
+    }
+
+    const SHORT_SECS = 300;
+    const byTime = (a, b) => (b.active + b.idle) - (a.active + a.idle);
+
+    const mainApps    = apps.filter(a => a.category !== 'ignore' && (a.active + a.idle) >= SHORT_SECS).sort(byTime);
+    const shortApps   = apps.filter(a => a.category !== 'ignore' && (a.active + a.idle) <  SHORT_SECS).sort(byTime);
+    const ignoredApps = apps.filter(a => a.category === 'ignore').sort(byTime);
+
+    const maxSecs = Math.max(...[...mainApps, ...shortApps].map(a => a.active + a.idle), 1);
+
+    function appHtml(a) {
+      const total = a.active + a.idle;
+      const ignored = a.category === 'ignore';
+      const pct = !ignored && maxSecs ? Math.round((total / maxSecs) * 100) : 0;
+      const color = ignored ? '#444' : projectColor(a.app);
+      const idleStr = a.idle ? ` · ${fmt(a.idle)} idle` : '';
+      const opacity = ignored ? 'opacity:0.35;' : '';
+      const browserLabel = a.browser
+        ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">via ${a.browser}</div>` : '';
+      return `
+        <div class="app-row" style="${opacity}">
+          <div style="min-width:0">
+            <div class="app-row-left">
+              <span class="dot" style="background:${color}"></span>
+              <div style="min-width:0">
+                <div class="app-name">${a.app}</div>
+                ${browserLabel}
+              </div>
+            </div>
+            <div class="app-bar-wrap">
+              <div class="app-bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div class="app-time">${fmt(total)}<span style="color:var(--muted);font-weight:400;font-size:12px">${idleStr}</span></div>
+            <div style="margin-top:4px">${catBadge(a.app, a.category)}</div>
+          </div>
+        </div>`;
+    }
+
+    let html = mainApps.map(appHtml).join('');
+
+    if (shortApps.length) {
+      const id = 'short-apps';
+      html += `<div class="short-toggle" onclick="toggleShort('${id}')">▸ ${shortApps.length} short app${shortApps.length > 1 ? 's' : ''} (under 5m)</div>
+               <div id="${id}" class="short-section">${shortApps.map(appHtml).join('')}</div>`;
+    }
+
+    html += ignoredApps.map(appHtml).join('');
+
+    container.innerHTML = html;
+  }
+
+  // ── sessions ─────────────────────────────────────────────────────────────
+
+  function fmtTime(isoStr) {
+    const d = new Date(isoStr.replace(' ', 'T'));
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+
+  function fmtDateHeading(isoStr) {
+    const d = new Date(isoStr.replace(' ', 'T'));
+    const today = new Date();
+    const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  }
+
+  async function refreshSessions() {
+    const r = await fetch('/api/sessions?days=7');
+    const sessions = await r.json();
+    const container = document.getElementById('sessions-list');
+
+    if (!sessions.length) {
+      container.innerHTML = '<div class="empty">No sessions yet.</div>';
+      return;
+    }
+
+    function sessionRow(s) {
+      const isPremiereSession = s.app === 'Adobe Premiere';
+      const color = projectColor(isPremiereSession ? s.project : s.app);
+      const timeRange = `${fmtTime(s.start)} – ${fmtTime(s.end)}`;
+      const idleStr = s.idle ? `${fmt(s.idle)} idle` : '';
+      const label = isPremiereSession ? s.project : (s.app === s.project ? s.app : `${s.app} · ${s.project}`);
+      return `<div class="session-row">
+        <div class="session-bar" style="background:${color}"></div>
+        <div>
+          <div class="session-name">${label}</div>
+          <div class="session-time">${timeRange}</div>
+        </div>
+        <div>
+          <div class="session-dur">${fmt(s.active)}</div>
+          <div class="session-idle">${idleStr}</div>
+        </div>
+      </div>`;
+    }
+
+    // Group by date, separate short sessions per day
+    let html = '';
+    let lastDate = null;
+    let shortBuf = [];
+    let shortId = 0;
+
+    function flushShort() {
+      if (!shortBuf.length) return;
+      const id = `short-sess-${shortId++}`;
+      html += `<div class="short-toggle" onclick="toggleShort('${id}')">▸ ${shortBuf.length} short session${shortBuf.length>1?'s':''} (under 5m)</div>
+               <div id="${id}" class="short-section">${shortBuf.join('')}</div>`;
+      shortBuf = [];
+    }
+
+    for (const s of sessions) {
+      const dateKey = s.start.slice(0, 10);
+      if (dateKey !== lastDate) {
+        flushShort();
+        html += `<div class="session-date-divider">${fmtDateHeading(s.start)}</div>`;
+        lastDate = dateKey;
+      }
+      if (s.short) {
+        shortBuf.push(sessionRow(s));
+      } else {
+        html += sessionRow(s);
+      }
+    }
+    flushShort();
+    container.innerHTML = html;
+  }
+
+  // ── short-section toggle ─────────────────────────────────────────────────
+
+  window.toggleShort = function(id) {
+    const el = document.getElementById(id);
+    const btn = el.previousElementSibling;
+    const open = el.classList.toggle('open');
+    btn.textContent = btn.textContent.replace(/^[▸▾]/, open ? '▾' : '▸');
+  };
+
+  // ── project drawer ───────────────────────────────────────────────────────
+
+  window.showProject = async function(name) {
+    const drawer  = document.getElementById('project-drawer');
+    const overlay = document.getElementById('drawer-overlay');
+    const title   = document.getElementById('drawer-title');
+    const body    = document.getElementById('drawer-body');
+
+    title.textContent = name;
+    body.innerHTML = '<div class="empty" style="padding:40px 0">Loading…</div>';
+    drawer.classList.add('open');
+    overlay.classList.add('open');
+
+    const r = await fetch(`/api/project?name=${encodeURIComponent(name)}`);
+    const d = await r.json();
+
+    const color     = projectColor(name);
+    const dateRange = d.first_date && d.last_date
+      ? (d.first_date === d.last_date ? d.first_date : `${d.first_date} — ${d.last_date}`)
+      : '—';
+
+    let html = `
+      <div class="drawer-stats">
+        <div class="stat-box">
+          <div class="stat-label">Active</div>
+          <div class="stat-value" style="color:${color}">${fmt(d.total_active || 0)}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Idle</div>
+          <div class="stat-value">${d.total_idle ? fmt(d.total_idle) : '—'}</div>
+        </div>
+        <div class="stat-box" style="grid-column:1/-1">
+          <div class="stat-label">Date range</div>
+          <div class="stat-value" style="font-size:15px;font-weight:600">${dateRange}</div>
+        </div>
+      </div>`;
+
+    const realSeqs = (d.sequences || []).filter(s => s.name !== '(no sequence)' && s.active > 0);
+    if (realSeqs.length) {
+      html += `<div class="drawer-section-title">Sequences</div>`;
+      html += realSeqs.map(s => `
+        <div class="seq-item">
+          <span style="color:var(--muted)">↳</span>&ensp;<span style="flex:1">${s.name}</span>
+          <span style="color:var(--muted)">${fmt(s.active)}</span>
+        </div>`).join('');
+    }
+
+    const sessions = d.sessions || [];
+    html += `<div class="drawer-section-title">Sessions (${sessions.length})</div>`;
+    if (sessions.length) {
+      let lastDate = null;
+      sessions.forEach(s => {
+        const dateKey = s.start.slice(0, 10);
+        if (dateKey !== lastDate) {
+          html += `<div class="proj-session-date">${fmtDateHeading(s.start)}</div>`;
+          lastDate = dateKey;
+        }
+        const seqStr  = s.sequence ? `<div style="font-size:12px;color:var(--muted)">↳ ${s.sequence}</div>` : '';
+        const idleStr = s.idle     ? `<div style="font-size:11px;color:var(--muted)">${fmt(s.idle)} idle</div>` : '';
+        html += `
+          <div class="proj-session-row">
+            <div>
+              <div>${fmtTime(s.start)} – ${fmtTime(s.end)}</div>
+              ${seqStr}
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:600">${fmt(s.active)}</div>
+              ${idleStr}
+            </div>
+          </div>`;
+      });
+    } else {
+      html += '<div class="empty" style="padding:12px 0">No sessions found.</div>';
+    }
+
+    body.innerHTML = html;
+  };
+
+  window.closeDrawer = function() {
+    document.getElementById('project-drawer').classList.remove('open');
+    document.getElementById('drawer-overlay').classList.remove('open');
+  };
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  // ── auto-refresh ──────────────────────────────────────────────────────────
+
+  let secondsSinceRefresh = 0;
+  const REFRESH_INTERVAL = 30;
+
+  function updateRefreshHint() {
+    const remaining = REFRESH_INTERVAL - secondsSinceRefresh;
+    document.getElementById('refresh-hint').textContent =
+      remaining <= 0 ? 'Refreshing…' : `Auto-refresh in ${remaining}s`;
+  }
+
+  async function refreshAll() {
+    secondsSinceRefresh = 0;
+    updateRefreshHint();
+    await Promise.all([refreshStatus(), refreshToday(), refreshAppActivity(), refreshWeek(), refreshSessions(), refreshAlltime()]);
+  }
+
+  setInterval(() => {
+    secondsSinceRefresh++;
+    updateRefreshHint();
+    if (secondsSinceRefresh >= REFRESH_INTERVAL) refreshAll();
+  }, 1000);
+
+  // also refresh status every 5s for the live dot
+  setInterval(refreshStatus, 5000);
+
+  refreshAll();
+</script>
+</body>
+</html>
