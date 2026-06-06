@@ -197,9 +197,9 @@ def to_sessions(ticks: list, persist_date: str | None = None) -> list:
     if cur:
         sessions.append(_flush(cur))
 
-    # Mark short sessions
+    # Mark short sessions (only for Premiere — other apps don't get filtered)
     for s in sessions:
-        s["short"] = s["active"] < SHORT_SECS
+        s["short"] = s["app"] == "Adobe Premiere" and s["active"] < SHORT_SECS
 
     # Persist session summaries for this date
     if persist_date:
