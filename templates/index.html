@@ -251,6 +251,39 @@
     .app-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
     .app-time { font-size: 13px; font-weight: 600; white-space: nowrap; }
 
+    /* focus card */
+    .focus-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .focus-stat { text-align: center; padding: 14px 8px; background: var(--card2); border-radius: 8px; border: 1px solid var(--border); }
+    .focus-stat-value { font-size: 24px; font-weight: 700; line-height: 1; }
+    .focus-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px; }
+
+    .timeline-wrap {
+      position: relative;
+      height: 28px;
+      background: var(--card2);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .timeline-seg {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      transition: filter 0.15s;
+    }
+    .timeline-seg:hover { filter: brightness(1.25); }
+
+    .timeline-times { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+
+    .timeline-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 12px; }
+    .timeline-legend span { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+    .legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
     /* nav tabs */
     .nav-tabs {
       display: flex;
@@ -534,6 +567,22 @@
 
 <div id="view-dashboard">
 <main>
+  <!-- FOCUS SUMMARY -->
+  <div class="card" id="focus-card" style="display:none">
+    <h2>Focus Summary</h2>
+    <div class="focus-stats" id="focus-stats"></div>
+    <div class="timeline-wrap" id="timeline-bar"></div>
+    <div class="timeline-times" id="timeline-times"></div>
+    <div class="timeline-legend">
+      <span><span class="legend-dot" style="background:#4caf7d"></span>Editing</span>
+      <span><span class="legend-dot" style="background:rgba(76,195,120,0.35)"></span>Premiere idle</span>
+      <span><span class="legend-dot" style="background:#ff5a5a"></span>Distraction</span>
+      <span><span class="legend-dot" style="background:#64a0ff"></span>Research</span>
+      <span><span class="legend-dot" style="background:#e0a820"></span>Work</span>
+      <span><span class="legend-dot" style="background:#555"></span>Break</span>
+    </div>
+  </div>
+
   <!-- TODAY -->
   <div class="card">
     <h2 id="today-heading">Today</h2>
@@ -795,6 +844,73 @@
         }
       });
     }
+  }
+
+  // ── focus summary ─────────────────────────────────────────────────────────
+
+  const SEG_COLORS = {
+    editing:       '#4caf7d',
+    premiere_idle: 'rgba(76,195,120,0.35)',
+    distraction:   '#ff5a5a',
+    research:      '#64a0ff',
+    work:          '#e0a820',
+    break:         '#555',
+    other:         '#2a2a30',
+    gap:           'transparent',
+  };
+
+  function fmtSecs(s) {
+    if (s < 60)   return s + 's';
+    if (s < 3600) return Math.floor(s / 60) + 'm';
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return m ? `${h}h ${m}m` : `${h}h`;
+  }
+
+  async function refreshFocus() {
+    const card = document.getElementById('focus-card');
+    let d;
+    try {
+      const r = await fetch('/api/focus_today');
+      d = await r.json();
+    } catch(e) { return; }
+    if (!d || !d.session_seconds) { card.style.display = 'none'; return; }
+    card.style.display = '';
+
+    // Stats
+    const focusColor = d.focus_pct >= 70 ? '#4caf7d' : d.focus_pct >= 40 ? '#e0a820' : '#ff5a5a';
+    document.getElementById('focus-stats').innerHTML = `
+      <div class="focus-stat">
+        <div class="focus-stat-value" style="color:#4caf7d">${fmtSecs(d.editing_seconds)}</div>
+        <div class="focus-stat-label">Editing</div>
+      </div>
+      <div class="focus-stat">
+        <div class="focus-stat-value" style="color:#ff5a5a">${fmtSecs(d.distraction_seconds)}</div>
+        <div class="focus-stat-label">Distracted</div>
+      </div>
+      <div class="focus-stat">
+        <div class="focus-stat-value">${fmtSecs(d.session_seconds)}</div>
+        <div class="focus-stat-label">Session</div>
+      </div>
+      <div class="focus-stat">
+        <div class="focus-stat-value" style="color:${focusColor}">${d.focus_pct}%</div>
+        <div class="focus-stat-label">Focus</div>
+      </div>`;
+
+    // Timeline bar
+    const bar = document.getElementById('timeline-bar');
+    if (d.runs && d.runs.length && d.session_seconds > 0) {
+      bar.innerHTML = d.runs.map(run => {
+        const left  = (run.offset   / d.session_seconds * 100).toFixed(2);
+        const width = (run.duration / d.session_seconds * 100).toFixed(2);
+        const color = SEG_COLORS[run.type] || '#2a2a30';
+        return `<div class="timeline-seg" style="left:${left}%;width:${width}%;background:${color}" title="${run.type}"></div>`;
+      }).join('');
+    } else {
+      bar.innerHTML = '';
+    }
+
+    document.getElementById('timeline-times').innerHTML =
+      `<span>${d.session_start}</span><span>${d.session_end}</span>`;
   }
 
   // ── all-time table ────────────────────────────────────────────────────────
@@ -1260,7 +1376,7 @@
   async function refreshAll() {
     secondsSinceRefresh = 0;
     updateRefreshHint();
-    await Promise.all([refreshStatus(), refreshToday(), refreshAppActivity(), refreshWeek(), refreshSessions(), refreshAlltime()]);
+    await Promise.all([refreshStatus(), refreshFocus(), refreshToday(), refreshAppActivity(), refreshWeek(), refreshSessions(), refreshAlltime()]);
   }
 
   setInterval(() => {

@@ -376,6 +376,80 @@ class Handler(BaseHTTPRequestHandler):
             elif url == "/api/apps_today":
                 self._json(by_app(read_day(today)))
 
+            elif url == "/api/focus_today":
+                cats   = read_cats()
+                parsed = []
+                for t in (_norm(t) for t in read_day(today)):
+                    try:
+                        parsed.append((datetime.strptime(t["ts"], "%Y-%m-%d %H:%M:%S"), t))
+                    except Exception:
+                        pass
+                parsed.sort(key=lambda x: x[0])
+
+                if len(parsed) < 2:
+                    self._json({}); return  # no meaningful data yet
+
+                sess_start = parsed[0][0].timestamp()
+                sess_end   = parsed[-1][0].timestamp() + TICK_SEC
+                sess_secs  = sess_end - sess_start
+
+                def classify(t):
+                    a  = t.get("app", "")
+                    st = t.get("status", "active")
+                    c  = cats.get(a)
+                    if a == "Adobe Premiere":
+                        return "editing" if st == "active" else "premiere_idle"
+                    if c == "ignore":
+                        return "other"
+                    return c or "other"
+
+                editing = distraction = 0
+                for _, t in parsed:
+                    cl = classify(t)
+                    if cl == "editing":     editing     += TICK_SEC
+                    if cl == "distraction": distraction += TICK_SEC
+
+                focus_pct = round(editing / sess_secs * 100) if sess_secs > 0 else 0
+
+                # Build runs; gaps > 15 min become explicit "gap" segments
+                GAP = 900
+                runs = []
+                cur_type = cur_start = cur_end = None
+                for ts, t in parsed:
+                    epoch = ts.timestamp()
+                    cl    = classify(t)
+                    if cur_type is None:
+                        cur_type, cur_start, cur_end = cl, epoch, epoch
+                    elif epoch - cur_end > GAP + TICK_SEC:
+                        runs.append({"type": cur_type,
+                                     "offset":   round(cur_start - sess_start),
+                                     "duration": round(cur_end + TICK_SEC - cur_start)})
+                        runs.append({"type": "gap",
+                                     "offset":   round(cur_end + TICK_SEC - sess_start),
+                                     "duration": round(epoch - cur_end - TICK_SEC)})
+                        cur_type, cur_start, cur_end = cl, epoch, epoch
+                    elif cl != cur_type:
+                        runs.append({"type": cur_type,
+                                     "offset":   round(cur_start - sess_start),
+                                     "duration": round(cur_end + TICK_SEC - cur_start)})
+                        cur_type, cur_start, cur_end = cl, epoch, epoch
+                    else:
+                        cur_end = epoch
+                if cur_type is not None:
+                    runs.append({"type": cur_type,
+                                 "offset":   round(cur_start - sess_start),
+                                 "duration": round(cur_end + TICK_SEC - cur_start)})
+
+                self._json({
+                    "session_start":       parsed[0][0].strftime("%H:%M"),
+                    "session_end":         (parsed[-1][0] + timedelta(seconds=TICK_SEC)).strftime("%H:%M"),
+                    "session_seconds":     round(sess_secs),
+                    "editing_seconds":     editing,
+                    "distraction_seconds": distraction,
+                    "focus_pct":           focus_pct,
+                    "runs":                runs,
+                })
+
             elif url == "/api/categories":
                 self._json(read_cats())
 
