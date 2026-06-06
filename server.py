@@ -88,6 +88,21 @@ def save_cats(cats: dict):
     (DATA_DIR / "categories.json").write_text(json.dumps(cats, indent=2))
 
 
+def read_aliases() -> dict:
+    f = DATA_DIR / "aliases.json"
+    if not f.exists():
+        return {}
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_aliases(aliases: dict):
+    DATA_DIR.mkdir(exist_ok=True)
+    (DATA_DIR / "aliases.json").write_text(json.dumps(aliases, indent=2), encoding="utf-8")
+
+
 # ── aggregation ───────────────────────────────────────────────────────────
 
 def by_project(ticks: list) -> list:
@@ -124,14 +139,15 @@ def by_project(ticks: list) -> list:
 
 
 def by_app(ticks: list) -> list:
-    cats = read_cats()
+    cats    = read_cats()
+    aliases = read_aliases()
     acc: dict = {}
     for t in (_norm(t) for t in ticks):
         a    = t.get("app", "")
         proj = t.get("project") or ""
         # Split known sites out of their browser so they can be tagged individually.
         # Also split any context the user has already tagged (so tags persist).
-        if a in _BROWSER_APPS and proj and (proj in _KNOWN_SITES or cats.get(proj)):
+        if a in _BROWSER_APPS and proj and (proj in _KNOWN_SITES or cats.get(proj) or aliases.get(proj)):
             key, browser = proj, a
         else:
             key, browser = a, None
@@ -140,7 +156,8 @@ def by_app(ticks: list) -> list:
         acc[key][t.get("status", "active")] += TICK_SEC
 
     return sorted([
-        {"app": k, "active": v["active"], "idle": v["idle"],
+        {"app": k, "alias": aliases.get(k) or None,
+         "active": v["active"], "idle": v["idle"],
          "browser": v["browser"], "category": cats.get(k)}
         for k, v in acc.items()
     ], key=lambda x: -(x["active"] + x["idle"]))
@@ -324,6 +341,9 @@ class Handler(BaseHTTPRequestHandler):
             elif url == "/api/categories":
                 self._json(read_cats())
 
+            elif url == "/api/aliases":
+                self._json(read_aliases())
+
             else:
                 self._json({"error": "not found"}, 404)
 
@@ -363,6 +383,17 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     cats.pop(body.get("app", ""), None)
                 save_cats(cats)
+                self._json({"ok": True})
+
+            elif url == "/api/aliases":
+                aliases = read_aliases()
+                key   = body.get("app", "")
+                alias = (body.get("alias") or "").strip()
+                if alias and alias != key:
+                    aliases[key] = alias
+                else:
+                    aliases.pop(key, None)
+                save_aliases(aliases)
                 self._json({"ok": True})
 
             else:
