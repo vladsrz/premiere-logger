@@ -1042,10 +1042,7 @@
       const opacity = ignored ? 'opacity:0.35;' : '';
       const displayName = a.alias || a.app;
       const browserLabel = a.browser
-        ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">via ${a.browser}</div>`
-        : a.top_project
-        ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">↳ ${a.top_project}</div>`
-        : '';
+        ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">via ${a.browser}</div>` : '';
       return `
         <div class="app-row" style="${opacity}">
           <div style="min-width:0">
