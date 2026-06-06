@@ -616,6 +616,10 @@
 <script>
   // ── helpers ──────────────────────────────────────────────────────────────
 
+  function escAttr(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  }
+
   function fmt(seconds) {
     if (seconds < 60) return `${seconds}s`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
@@ -810,7 +814,7 @@
     const totalIdle   = rows.reduce((s, r) => s + r.idle,   0);
 
     function allRow(r) {
-      return `<tr onclick="showProject(${JSON.stringify(r.name)})">
+      return `<tr data-name="${escAttr(r.name)}" onclick="showProject(this.dataset.name)">
         <td><span class="dot" style="background:${projectColor(r.name)}"></span>${r.name}</td>
         <td>${fmt(r.active)}</td>
         <td>${r.idle ? fmt(r.idle) : '—'}</td>
@@ -930,7 +934,7 @@
               <div style="min-width:0">
                 <div style="display:flex;align-items:center;gap:4px">
                   <div class="app-name">${displayName}</div>
-                  <button class="app-rename-btn" onclick="startRename(this,${JSON.stringify(a.app)},${JSON.stringify(a.alias||'')})">✏</button>
+                  <button class="app-rename-btn" data-key="${escAttr(a.app)}" data-alias="${escAttr(a.alias||'')}" onclick="startRename(this)">✎</button>
                 </div>
                 ${browserLabel}
               </div>
@@ -1099,7 +1103,7 @@
         ? p.last_date
         : `${p.first_date.slice(5).replace('-','/')} – ${p.last_date.slice(5).replace('-','/')}`;
       return `
-        <div class="proj-item" onclick="showProject(${JSON.stringify(p.name)})">
+        <div class="proj-item" data-name="${escAttr(p.name)}" onclick="showProject(this.dataset.name)">
           <div class="proj-item-bar"   style="background:${color}"></div>
           <div class="proj-item-name">${p.name}</div>
           <div class="proj-item-time"  style="color:${color}">${fmt(p.active)}</div>
@@ -1121,7 +1125,9 @@
 
   // ── app rename ───────────────────────────────────────────────────────────
 
-  window.startRename = function(btn, appKey, currentAlias) {
+  window.startRename = function(btn) {
+    const appKey       = btn.dataset.key;
+    const currentAlias = btn.dataset.alias || '';
     const nameEl = btn.previousElementSibling;
     const input  = document.createElement('input');
     input.type   = 'text';
