@@ -401,6 +401,15 @@ class Handler(BaseHTTPRequestHandler):
                         return "editing" if st == "active" else "premiere_idle"
                     if c == "ignore":
                         return "other"
+                    # For browser ticks, check the site/project field too
+                    if a in _BROWSER_APPS:
+                        proj = t.get("project", "")
+                        if proj and proj != a:
+                            sc = cats.get(proj)
+                            if sc == "ignore":
+                                return "other"
+                            if sc:
+                                return sc
                     return c or "other"
 
                 editing = distraction = 0
