@@ -251,6 +251,83 @@
     .app-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s; }
     .app-time { font-size: 13px; font-weight: 600; white-space: nowrap; }
 
+    /* nav tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 3px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .nav-tab {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 18px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .nav-tab:hover { color: var(--text); }
+    .nav-tab.active { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+
+    /* projects view */
+    .projects-page { max-width: 900px; margin: 0 auto; padding: 28px 24px; }
+
+    .projects-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+
+    .search-input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 9px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--accent2); }
+    .search-input::placeholder { color: var(--muted); }
+
+    .sort-btns { display: flex; gap: 4px; flex-shrink: 0; }
+    .sort-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      padding: 7px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .sort-btn:hover { color: var(--text); border-color: var(--muted); }
+    .sort-btn.active { color: var(--accent2); border-color: var(--accent2); background: rgba(240,125,70,0.08); }
+
+    .proj-item {
+      display: grid;
+      grid-template-columns: 4px 1fr auto;
+      grid-template-rows: auto auto;
+      column-gap: 14px;
+      row-gap: 5px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .proj-item + .proj-item { margin-top: 2px; }
+    .proj-item:hover { background: var(--card2); }
+    .proj-item-bar  { grid-column:1; grid-row:1/3; border-radius:2px; align-self:stretch; min-height:28px; }
+    .proj-item-name { grid-column:2; grid-row:1; font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .proj-item-time { grid-column:3; grid-row:1; font-size:15px; font-weight:700; text-align:right; white-space:nowrap; }
+    .proj-item-track { grid-column:2; grid-row:2; height:3px; background:var(--border); border-radius:2px; overflow:hidden; align-self:center; }
+    .proj-item-fill  { height:100%; border-radius:2px; }
+    .proj-item-dates { grid-column:3; grid-row:2; font-size:11px; color:var(--muted); text-align:right; align-self:center; white-space:nowrap; }
+
     .app-rename-btn {
       opacity: 0;
       background: none;
@@ -442,13 +519,20 @@
     <div class="logo-dot"></div>
     Premiere Logger
   </div>
-  <div id="status-badge">
-    <div id="status-dot"></div>
-    <span id="status-text">Checking…</span>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-view="dashboard" onclick="showView('dashboard')">Dashboard</button>
+    <button class="nav-tab"        data-view="projects"  onclick="showView('projects')">Projects</button>
+  </nav>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div id="status-badge">
+      <div id="status-dot"></div>
+      <span id="status-text">Checking…</span>
+    </div>
+    <span class="refresh-hint" id="refresh-hint"></span>
   </div>
-  <span class="refresh-hint" id="refresh-hint"></span>
 </header>
 
+<div id="view-dashboard">
 <main>
   <!-- TODAY -->
   <div class="card">
@@ -504,6 +588,21 @@
     <div id="alltime-apps"></div>
   </div>
 </main>
+</div><!-- /view-dashboard -->
+
+<div id="view-projects" style="display:none">
+  <div class="projects-page">
+    <div class="projects-toolbar">
+      <input type="text" class="search-input" id="proj-search" placeholder="Search projects…" oninput="filterProjects()">
+      <div class="sort-btns">
+        <button class="sort-btn active" id="sort-time"   onclick="sortProjects('time')">Most time</button>
+        <button class="sort-btn"        id="sort-recent" onclick="sortProjects('recent')">Recently worked</button>
+        <button class="sort-btn"        id="sort-name"   onclick="sortProjects('name')">Name</button>
+      </div>
+    </div>
+    <div id="projects-list"><div class="empty">Loading…</div></div>
+  </div>
+</div>
 
 <div id="drawer-overlay" class="drawer-overlay" onclick="closeDrawer()"></div>
 <div id="project-drawer" class="project-drawer">
@@ -945,6 +1044,81 @@
     btn.textContent = btn.textContent.replace(/^[▸▾]/, open ? '▾' : '▸');
   };
 
+  // ── view routing ─────────────────────────────────────────────────────────
+
+  function showView(name) {
+    document.getElementById('view-dashboard').style.display = name === 'dashboard' ? '' : 'none';
+    document.getElementById('view-projects').style.display  = name === 'projects'  ? '' : 'none';
+    document.querySelectorAll('.nav-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.view === name)
+    );
+    if (name === 'projects' && !_allProjects.length) refreshProjects();
+    location.hash = name === 'dashboard' ? '' : name;
+  }
+
+  // ── projects page ─────────────────────────────────────────────────────────
+
+  let _allProjects = [];
+  let _projSort    = 'time';
+
+  async function refreshProjects() {
+    const r = await fetch('/api/projects');
+    _allProjects = await r.json();
+    renderProjects();
+  }
+
+  function filterProjects() { renderProjects(); }
+
+  function sortProjects(by) {
+    _projSort = by;
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('sort-' + by).classList.add('active');
+    renderProjects();
+  }
+
+  function renderProjects() {
+    const query = (document.getElementById('proj-search')?.value || '').toLowerCase().trim();
+    let projs = _allProjects.filter(p => !query || p.name.toLowerCase().includes(query));
+
+    if      (_projSort === 'recent') projs = [...projs].sort((a,b) => b.last_date.localeCompare(a.last_date));
+    else if (_projSort === 'name')   projs = [...projs].sort((a,b) => a.name.localeCompare(b.name));
+    // 'time' already sorted by server
+
+    const container = document.getElementById('projects-list');
+    if (!projs.length) { container.innerHTML = '<div class="empty">No projects found.</div>'; return; }
+
+    const maxActive  = Math.max(...projs.map(p => p.active), 1);
+    const mainProjs  = projs.filter(p => !p.short);
+    const shortProjs = projs.filter(p =>  p.short);
+
+    function projRow(p) {
+      const color     = projectColor(p.name);
+      const pct       = Math.round((p.active / maxActive) * 100);
+      const sameDay   = p.first_date === p.last_date;
+      const dateRange = sameDay
+        ? p.last_date
+        : `${p.first_date.slice(5).replace('-','/')} – ${p.last_date.slice(5).replace('-','/')}`;
+      return `
+        <div class="proj-item" onclick="showProject(${JSON.stringify(p.name)})">
+          <div class="proj-item-bar"   style="background:${color}"></div>
+          <div class="proj-item-name">${p.name}</div>
+          <div class="proj-item-time"  style="color:${color}">${fmt(p.active)}</div>
+          <div class="proj-item-track"><div class="proj-item-fill" style="width:${pct}%;background:${color}"></div></div>
+          <div class="proj-item-dates">${dateRange}</div>
+        </div>`;
+    }
+
+    let html = mainProjs.map(projRow).join('');
+    if (shortProjs.length && !query) {
+      const id = 'short-proj-list';
+      html += `<div class="short-toggle" style="margin-top:8px" onclick="toggleShort('${id}')">▸ ${shortProjs.length} short project${shortProjs.length > 1 ? 's' : ''} (under 5m)</div>
+               <div id="${id}" class="short-section">${shortProjs.map(projRow).join('')}</div>`;
+    } else {
+      html += shortProjs.map(projRow).join('');
+    }
+    container.innerHTML = html;
+  }
+
   // ── app rename ───────────────────────────────────────────────────────────
 
   window.startRename = function(btn, appKey, currentAlias) {
@@ -1091,6 +1265,9 @@
 
   // also refresh status every 5s for the live dot
   setInterval(refreshStatus, 5000);
+
+  // restore view from hash
+  if (location.hash === '#projects') showView('projects');
 
   refreshAll();
 </script>

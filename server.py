@@ -303,6 +303,44 @@ class Handler(BaseHTTPRequestHandler):
             elif url == "/api/apps_alltime":
                 self._json(by_app(read_range(365)))
 
+            elif url == "/api/projects":
+                ticks = read_range(365)
+                acc:   dict = {}
+                names: dict = {}
+                for t in (_norm(t) for t in ticks):
+                    if t.get("app") != "Adobe Premiere":
+                        continue
+                    display = t.get("project", "")
+                    if display in _BAD_PROJ:
+                        continue
+                    key = _proj_key(t)
+                    if not key or key in _BAD_PROJ:
+                        continue
+                    if key not in acc:
+                        acc[key] = {"active": 0, "idle": 0,
+                                    "first": t["ts"][:10], "last": t["ts"][:10]}
+                    acc[key][t.get("status", "active")] += TICK_SEC
+                    acc[key]["last"] = t["ts"][:10]
+                    names[key] = display
+                merged: dict = {}
+                for key, v in acc.items():
+                    n = names[key]
+                    if n not in merged:
+                        merged[n] = {"active": 0, "idle": 0,
+                                     "first": v["first"], "last": v["last"]}
+                    merged[n]["active"] += v["active"]
+                    merged[n]["idle"]   += v["idle"]
+                    if v["first"] < merged[n]["first"]:
+                        merged[n]["first"] = v["first"]
+                    if v["last"]  > merged[n]["last"]:
+                        merged[n]["last"]  = v["last"]
+                self._json(sorted([
+                    {"name": n, "active": v["active"], "idle": v["idle"],
+                     "first_date": v["first"], "last_date": v["last"],
+                     "short": (v["active"] + v["idle"]) < SHORT_SECS}
+                    for n, v in merged.items()
+                ], key=lambda x: -x["active"]))
+
             elif url == "/api/project":
                 name = self.path.split("name=")[-1].split("&")[0]
                 import urllib.parse
