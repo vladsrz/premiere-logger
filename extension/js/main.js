@@ -16,7 +16,8 @@ var _path  = null;
 
         function bg(cmd, args) {
             var p = require('child_process').spawn(cmd, args,
-                { cwd: BASE, detached: true, stdio: 'ignore', windowsHide: true });
+                { cwd: BASE, detached: true, stdio: 'ignore', windowsHide: true,
+                  creationFlags: 0x08000000 }); // CREATE_NO_WINDOW
             p.unref();
         }
         bg('pythonw', [_path.join(BASE, 'server.py')]);
