@@ -142,6 +142,7 @@ def by_app(ticks: list) -> list:
     cats    = read_cats()
     aliases = read_aliases()
     acc: dict = {}
+    premiere_projects: dict = {}  # project -> active seconds, for Premiere only
     for t in (_norm(t) for t in ticks):
         a    = t.get("app", "")
         proj = t.get("project") or ""
@@ -154,11 +155,16 @@ def by_app(ticks: list) -> list:
         if key not in acc:
             acc[key] = {"active": 0, "idle": 0, "browser": browser}
         acc[key][t.get("status", "active")] += TICK_SEC
+        if a == "Adobe Premiere" and proj and proj not in _BAD_PROJ:
+            premiere_projects[proj] = premiere_projects.get(proj, 0) + TICK_SEC
+
+    top_premiere = max(premiere_projects, key=premiere_projects.get) if premiere_projects else None
 
     return sorted([
         {"app": k, "alias": aliases.get(k) or None,
          "active": v["active"], "idle": v["idle"],
-         "browser": v["browser"], "category": cats.get(k)}
+         "browser": v["browser"], "category": cats.get(k),
+         "top_project": top_premiere if k == "Adobe Premiere" else None}
         for k, v in acc.items()
     ], key=lambda x: -(x["active"] + x["idle"]))
 
