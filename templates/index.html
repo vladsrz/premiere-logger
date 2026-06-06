@@ -354,9 +354,12 @@
     }
     .proj-item + .proj-item { margin-top: 2px; }
     .proj-item:hover { background: var(--card2); }
-    .proj-item-bar  { grid-column:1; grid-row:1/3; border-radius:2px; align-self:stretch; min-height:28px; }
-    .proj-item-name { grid-column:2; grid-row:1; font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .proj-item-time { grid-column:3; grid-row:1; font-size:15px; font-weight:700; text-align:right; white-space:nowrap; }
+    .proj-item-bar   { grid-column:1; grid-row:1/3; border-radius:2px; align-self:stretch; min-height:28px; }
+    .proj-item-name  { grid-column:2; grid-row:1; font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .proj-item-meta  { grid-column:3; grid-row:1; display:flex; align-items:baseline; gap:10px; justify-content:flex-end; white-space:nowrap; }
+    .proj-item-time  { font-size:15px; font-weight:700; }
+    .proj-item-idle  { font-size:11px; color:var(--muted); }
+    .proj-item-focus { font-size:11px; font-weight:600; }
     .proj-item-track { grid-column:2; grid-row:2; height:3px; background:var(--border); border-radius:2px; overflow:hidden; align-self:center; }
     .proj-item-fill  { height:100%; border-radius:2px; }
     .proj-item-dates { grid-column:3; grid-row:2; font-size:11px; color:var(--muted); text-align:right; align-self:center; white-space:nowrap; }
@@ -890,7 +893,7 @@
       </div>
       <div class="focus-stat">
         <div class="focus-stat-value">${fmtSecs(d.session_seconds)}</div>
-        <div class="focus-stat-label">Session</div>
+        <div class="focus-stat-label">Day Span</div>
       </div>
       <div class="focus-stat">
         <div class="focus-stat-value" style="color:${focusColor}">${d.focus_pct}%</div>
@@ -1224,11 +1227,19 @@
       const dateRange = sameDay
         ? p.last_date
         : `${p.first_date.slice(5).replace('-','/')} – ${p.last_date.slice(5).replace('-','/')}`;
+      const total     = p.active + (p.idle || 0);
+      const focusPct  = total > 0 ? Math.round(p.active / total * 100) : 100;
+      const focusColor = focusPct >= 70 ? '#4caf7d' : focusPct >= 40 ? '#e0a820' : '#ff5a5a';
+      const idleStr   = p.idle ? `<span class="proj-item-idle">${fmt(p.idle)} idle</span>` : '';
       return `
         <div class="proj-item" data-name="${escAttr(p.name)}" onclick="showProject(this.dataset.name)">
           <div class="proj-item-bar"   style="background:${color}"></div>
           <div class="proj-item-name">${p.name}</div>
-          <div class="proj-item-time"  style="color:${color}">${fmt(p.active)}</div>
+          <div class="proj-item-meta">
+            <span class="proj-item-time" style="color:${color}">${fmt(p.active)}</span>
+            ${idleStr}
+            <span class="proj-item-focus" style="color:${focusColor}">${focusPct}% focused</span>
+          </div>
           <div class="proj-item-track"><div class="proj-item-fill" style="width:${pct}%;background:${color}"></div></div>
           <div class="proj-item-dates">${dateRange}</div>
         </div>`;
