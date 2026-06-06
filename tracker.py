@@ -183,8 +183,7 @@ def get_current_activity():
         if exe in SKIP_EXES: return None
 
         if "Adobe Premiere" in title:
-            display, proj_path = parse_premiere_project(title)
-            return "Adobe Premiere", display, proj_path
+            return None  # CEP extension handles Premiere tracking to avoid double-counting
 
         app = clean_app_name(exe) if exe else title.split(" - ")[-1].strip()[:40]
 

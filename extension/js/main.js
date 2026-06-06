@@ -187,7 +187,12 @@ function poll() {
         // Write tick directly to JSONL file
         if (_fs && BASE) {
             try {
-                var idle  = (Date.now() - _lastActivity) > 5 * 60 * 1000;
+                // "active"  = Premiere is the focused app AND user has been active recently
+                // "idle"    = Premiere is focused but user inactive, OR Premiere is in background
+                // background ticks are still written so open-but-not-focused time is visible
+                var focused       = document.hasFocus();
+                var recentActivity = (Date.now() - _lastActivity) < 5 * 60 * 1000;
+                var status = (focused && recentActivity) ? 'active' : 'idle';
                 var ts    = (function() {
                     var d = new Date(), pad = function(n){return n<10?'0'+n:''+n;};
                     return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+
@@ -195,11 +200,11 @@ function poll() {
                 })();
                 var tick  = JSON.stringify({ ts: ts, app: 'Adobe Premiere',
                     project: info.project, seq: info.sequence || null,
-                    status: idle ? 'idle' : 'active', source: 'cep' });
+                    status: status, source: 'cep' });
                 var dataDir = _path.join(BASE, 'data');
                 if (!_fs.existsSync(dataDir)) _fs.mkdirSync(dataDir, { recursive: true });
                 _fs.appendFileSync(_path.join(dataDir, ts.slice(0,10) + '.jsonl'), tick + '\n');
-                _lastStatus = idle ? 'idle' : 'active';
+                _lastStatus = status;
             } catch (e) { console.log('[PremLogger] write tick failed:', e.message); }
         }
 
