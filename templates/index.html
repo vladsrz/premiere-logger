@@ -416,6 +416,7 @@
       align-self: stretch;
     }
     .session-name { font-weight: 500; font-size: 13px; }
+    .session-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
     .session-time { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .session-dur  { font-size: 13px; font-weight: 600; color: var(--text); text-align: right; }
     .session-idle { font-size: 11px; color: var(--muted); text-align: right; margin-top: 2px; }
@@ -1105,16 +1106,21 @@
       return;
     }
 
+    const BROWSERS = new Set(['Firefox','Chrome','Edge','Brave','Opera','Vivaldi']);
     function sessionRow(s) {
       const isPremiereSession = s.app === 'Adobe Premiere';
-      const color = projectColor(isPremiereSession ? s.project : s.app);
+      const isBrowser = BROWSERS.has(s.app) && s.project && s.project !== s.app;
+      const displayName = isPremiereSession ? s.project : (isBrowser ? s.project : s.app);
+      const color = projectColor(displayName);
       const timeRange = `${fmtTime(s.start)} – ${fmtTime(s.end)}`;
       const idleStr = s.idle ? `${fmt(s.idle)} idle` : '';
-      const label = isPremiereSession ? s.project : (s.app === s.project ? s.app : `${s.app} · ${s.project}`);
+      const sublabel = isBrowser ? `<div class="session-sub">via ${s.app}</div>` : '';
+      const label = displayName;
       return `<div class="session-row">
         <div class="session-bar" style="background:${color}"></div>
         <div>
           <div class="session-name">${label}</div>
+          ${sublabel}
           <div class="session-time">${timeRange}</div>
         </div>
         <div>
